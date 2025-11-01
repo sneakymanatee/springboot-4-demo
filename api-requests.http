@@ -1,0 +1,50 @@
+### Get OAuth2 token with client credentials
+POST http://localhost:8080/oauth2/token
+Authorization: Basic client secret
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+
+> {%
+    client.global.set("access_token", response.body.access_token);
+%}
+
+###
+
+### Issue Admin Token
+POST http://localhost:8080/token/admin
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.global.set("admin_token", response.body.token);
+%}
+
+###
+
+### Issue User Token
+POST http://localhost:8080/token/user
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.global.set("user_token", response.body.token);
+%}
+
+###
+
+### GET /hello (no authentication required)
+GET http://localhost:8080/hello
+
+###
+
+### GET /hello/admin with admin token
+GET http://localhost:8080/hello/admin
+Authorization: Bearer {{admin_token}}
+
+###
+
+### GET /hello/admin with user token (should fail with 403)
+GET http://localhost:8080/hello/admin
+Authorization: Bearer {{user_token}}
+
+###
+
