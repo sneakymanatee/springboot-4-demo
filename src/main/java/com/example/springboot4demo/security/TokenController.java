@@ -48,5 +48,4 @@ public class TokenController {
         return new TokenResponse(token, expiry, authority);
     }
 
-    public record TokenResponse(String token, long expiresIn, String authority) {}
 }
