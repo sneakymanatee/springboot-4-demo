@@ -1,4 +1,4 @@
-package com.example.springboot4demo;
+package com.example.springboot4demo.security;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;

@@ -48,3 +48,20 @@ Authorization: Bearer {{user_token}}
 
 ###
 
+###
+
+### GET /messages - Read all messages from database
+GET http://localhost:8080/messages
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+###
+
+### POST /messages - Send message to Kafka
+POST http://localhost:8080/messages
+Authorization: Bearer {{admin_token}}
+Content-Type: text/plain
+
+Hello from Kafka!
+
+###
