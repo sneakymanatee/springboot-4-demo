@@ -20,6 +20,11 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:29092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:latest
@@ -32,7 +37,8 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   postgres:
     image: postgres:16
@@ -46,6 +52,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -62,12 +73,92 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     configs:
       - source: pgadmin_servers
         target: /pgadmin4/servers.json
       - source: pgadmin_passfile
         target: /pgadmin4/passfile
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: app
+    container_name: app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/springboot_demo
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: 'true'
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: 'true'
+      LOKI_URL: http://loki:3100/loki/api/v1/push
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      loki:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    depends_on:
+      - app
+
+  loki:
+    image: grafana/loki:latest
+    hostname: loki
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    configs:
+      - source: loki_config
+        target: /etc/loki/local-config.yaml
+
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yml
+      - source: grafana_dashboards_provider
+        target: /etc/grafana/provisioning/dashboards/provider.yml
+      - source: grafana_dashboard_jvm
+        target: /var/lib/grafana/dashboards/jvm.json
+    depends_on:
+      - prometheus
+      - loki
 
 configs:
   pgadmin_servers:
@@ -92,6 +183,166 @@ configs:
     content: |
       postgres:5432:springboot_demo:postgres:postgres
 
+  prometheus_config:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: 'spring-boot-app'
+          metrics_path: '/actuator/prometheus'
+          static_configs:
+            - targets: ['app:8080']
+              labels:
+                application: 'springboot-demo'
+
+  loki_config:
+    content: |
+      auth_enabled: false
+
+      server:
+        http_listen_port: 3100
+
+      common:
+        path_prefix: /loki
+
+      ingester:
+        lifecycler:
+          ring:
+            kvstore:
+              store: inmemory
+            replication_factor: 1
+
+      schema_config:
+        configs:
+          - from: "2024-01-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+
+      storage_config:
+        filesystem:
+          directory: /loki/chunks
+
+      limits_config:
+        allow_structured_metadata: true
+        retention_period: 168h
+
+  grafana_datasources:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: true
+
+        - name: Loki
+          type: loki
+          access: proxy
+          url: http://loki:3100
+          editable: true
+
+  grafana_dashboards_provider:
+    content: |
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards
+
+  grafana_dashboard_jvm:
+    content: |
+      {
+        "__inputs": [],
+        "__requires": [],
+        "annotations": { "list": [] },
+        "editable": true,
+        "fiscalYearStartMonth": 0,
+        "graphTooltip": 0,
+        "id": null,
+        "links": [],
+        "panels": [
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": { "color": { "mode": "palette-classic" }, "unit": "bytes" },
+              "overrides": []
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+            "id": 1,
+            "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+            "title": "JVM Heap Memory Used",
+            "type": "timeseries",
+            "targets": [
+              {
+                "datasource": { "type": "prometheus", "uid": "prometheus" },
+                "expr": "jvm_memory_used_bytes{application=\"springboot-demo\", area=\"heap\"}",
+                "legendFormat": "{{id}}"
+              }
+            ]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
+              "overrides": []
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+            "id": 2,
+            "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+            "title": "HTTP Request Rate",
+            "type": "timeseries",
+            "targets": [
+              {
+                "datasource": { "type": "prometheus", "uid": "prometheus" },
+                "expr": "rate(http_server_requests_seconds_count{application=\"springboot-demo\"}[1m])",
+                "legendFormat": "{{method}} {{uri}} {{status}}"
+              }
+            ]
+          },
+          {
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+            "id": 3,
+            "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": false },
+            "title": "Application Logs",
+            "type": "logs",
+            "targets": [
+              {
+                "datasource": { "type": "loki", "uid": "loki" },
+                "expr": "{app=\"springboot-demo\"}",
+                "legendFormat": ""
+              }
+            ]
+          }
+        ],
+        "refresh": "10s",
+        "schemaVersion": 38,
+        "tags": ["spring-boot"],
+        "templating": { "list": [] },
+        "time": { "from": "now-1h", "to": "now" },
+        "timepicker": {},
+        "timezone": "browser",
+        "title": "Spring Boot Demo",
+        "uid": "springboot-demo",
+        "version": 1
+      }
+
 volumes:
   postgres_data:
   pgadmin_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
