@@ -1,0 +1,462 @@
+openapi: 3.0.3
+info:
+  title: Dynamic Pricing API
+  description: |
+    A demonstration REST API for managing dynamic product pricing with asynchronous Kafka processing.
+    
+    Features:
+    - Create and update products
+    - Publish dynamic price updates asynchronously to Kafka
+    - Query active price history for products
+    - Real-time price tracking with valid from/until dates
+  version: 1.0.0
+  contact:
+    name: Spring Boot Demo
+    url: http://localhost:8080
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: http://localhost:8080/api/v1/pricing
+    description: Pricing API base path
+
+tags:
+  - name: Products
+    description: Product management endpoints
+  - name: Prices
+    description: Price management and queries
+
+paths:
+  /api/v1/pricing/products:
+    post:
+      summary: Create a new product
+      description: |
+        Creates a new product with the provided details.
+        Products are uniquely identified by SKU.
+      tags:
+        - Products
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+            examples:
+              laptop:
+                summary: Laptop product
+                value:
+                  sku: "LAPTOP-NEW-001"
+                  name: "Premium Pro Laptop"
+                  description: "High-performance laptop for professionals"
+                  base_price: 1299.99
+              phone:
+                summary: Smartphone product
+                value:
+                  sku: "PHONE-2024-001"
+                  name: "Flagship Smartphone"
+                  description: "Latest flagship with all features"
+                  base_price: 999.99
+      responses:
+        '201':
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Product with this SKU already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/pricing/products/{sku}:
+    get:
+      summary: Get product by SKU
+      description: Retrieves a product using its unique SKU identifier
+      tags:
+        - Products
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: Product SKU (e.g., LAPTOP-001)
+          schema:
+            type: string
+          example: "LAPTOP-001"
+      responses:
+        '200':
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      summary: Update product by SKU
+      description: |
+        Updates product details by SKU.
+        Only provided fields are updated (partial update).
+      tags:
+        - Products
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: Product SKU
+          schema:
+            type: string
+          example: "LAPTOP-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductPatchRequest'
+            examples:
+              updatePrice:
+                summary: Update price only
+                value:
+                  base_price: 1199.99
+              updateName:
+                summary: Update name and price
+                value:
+                  name: "Updated Product Name"
+                  base_price: 1399.99
+      responses:
+        '200':
+          description: Product updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/pricing/prices:
+    post:
+      summary: Publish price update
+      description: |
+        Publishes a price update for a product asynchronously to Kafka.
+        The price is processed asynchronously and stored in the database.
+        Response status 202 indicates the request was accepted for processing.
+      tags:
+        - Prices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceEvent'
+            examples:
+              laptopPrice:
+                summary: Price update for laptop
+                value:
+                  product_sku: "LAPTOP-001"
+                  amount: 1199.99
+                  currency: "USD"
+              phonePrice:
+                summary: Price update for phone
+                value:
+                  product_sku: "PHONE-001"
+                  amount: 899.99
+                  currency: "USD"
+              discountedPrice:
+                summary: Discounted price
+                value:
+                  product_sku: "MONITOR-001"
+                  amount: 399.99
+                  currency: "USD"
+      responses:
+        '202':
+          description: Price update accepted for processing
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/pricing/products/{sku}/prices:
+    get:
+      summary: Get all active prices for product by SKU
+      description: |
+        Retrieves all active (currently valid) prices for a product identified by SKU.
+        Prices are sorted by valid_from in descending order (newest first).
+        Only prices with validUntil in the future or null are returned.
+      tags:
+        - Prices
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: Product SKU
+          schema:
+            type: string
+          example: "LAPTOP-001"
+      responses:
+        '200':
+          description: List of active prices for the product
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PriceResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/pricing/products/id/{id}/prices:
+    get:
+      summary: Get all active prices for product by ID
+      description: |
+        Retrieves all active (currently valid) prices for a product identified by numeric ID.
+        Prices are sorted by valid_from in descending order (newest first).
+      tags:
+        - Prices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Product numeric ID
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      responses:
+        '200':
+          description: List of active prices for the product
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PriceResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ProductRequest:
+      type: object
+      description: Request payload for creating or updating a product
+      properties:
+        sku:
+          type: string
+          description: Unique product SKU identifier
+          example: "LAPTOP-001"
+        name:
+          type: string
+          description: Product name
+          example: "Premium Pro Laptop"
+        description:
+          type: string
+          description: Detailed product description
+          example: "High-performance laptop for professionals with latest specs"
+        base_price:
+          type: number
+          format: double
+          description: Base price of the product
+          example: 1299.99
+      required:
+        - sku
+        - name
+        - base_price
+
+    ProductPatchRequest:
+      type: object
+      description: Request payload for partial product updates. All fields are optional.
+      properties:
+        name:
+          type: string
+          description: Product name
+          example: "Premium Pro Laptop - Updated Edition"
+        description:
+          type: string
+          description: Detailed product description
+          example: "Updated description"
+        base_price:
+          type: number
+          format: double
+          description: Base price of the product
+          example: 1199.99
+
+    Product:
+      type: object
+      description: Product entity with metadata
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique product ID
+          example: 1
+        sku:
+          type: string
+          description: Unique product SKU
+          example: "LAPTOP-001"
+        name:
+          type: string
+          description: Product name
+          example: "Premium Pro Laptop"
+        description:
+          type: string
+          description: Product description
+          example: "High-performance laptop for professionals"
+        base_price:
+          type: number
+          format: double
+          description: Base price
+          example: 1299.99
+        created_at:
+          type: string
+          format: date-time
+          description: Product creation timestamp
+          example: "2026-05-13T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2026-05-13T10:30:00Z"
+
+    PriceEvent:
+      type: object
+      description: Price update event to be published to Kafka
+      properties:
+        product_sku:
+          type: string
+          description: SKU of the product
+          example: "LAPTOP-001"
+        product_id:
+          type: integer
+          format: int64
+          description: Product numeric ID (auto-populated by server)
+          example: 1
+        amount:
+          type: number
+          format: double
+          description: Price amount
+          example: 1199.99
+        currency:
+          type: string
+          description: Currency code (ISO 4217)
+          example: "USD"
+          default: "USD"
+        source:
+          type: string
+          description: Source of the price update (auto-populated by server)
+          example: "API"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the price update (auto-populated by server)
+          example: "2026-05-13T10:30:00Z"
+      required:
+        - product_sku
+        - amount
+        - currency
+
+    PriceResponse:
+      type: object
+      description: Price information for a product
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique price record ID
+          example: 5
+        product_id:
+          type: integer
+          format: int64
+          description: Associated product ID
+          example: 1
+        amount:
+          type: number
+          format: double
+          description: Price amount
+          example: 1199.99
+        currency:
+          type: string
+          description: Currency code
+          example: "USD"
+        source:
+          type: string
+          description: Source of the price (KAFKA, API, MANUAL, SEED)
+          example: "API"
+        valid_from:
+          type: string
+          format: date-time
+          description: Price validity start date
+          example: "2026-05-13T10:30:00Z"
+        valid_until:
+          type: string
+          format: date-time
+          nullable: true
+          description: Price validity end date (null means no expiration)
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: When the price record was created
+          example: "2026-05-13T10:30:00Z"
+
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+        status:
+          type: integer
+          description: HTTP status code
+          example: 404
+        error:
+          type: string
+          description: Error type
+          example: "Not Found"
+        message:
+          type: string
+          description: Error message
+          example: "Product not found with SKU: INVALID-SKU"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/pricing/products/INVALID-SKU"
+

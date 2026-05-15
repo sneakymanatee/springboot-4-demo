@@ -1,4 +1,8 @@
-### Get OAuth2 token with client credentials
+# ===================================
+# Authentication Endpoints
+# ===================================
+
+### @name get_oauth2_token
 POST http://localhost:8080/oauth2/token
 Authorization: Basic client secret
 Content-Type: application/x-www-form-urlencoded
@@ -11,7 +15,7 @@ grant_type=client_credentials
 
 ###
 
-### Issue Admin Token
+### @name issue_admin_token
 POST http://localhost:8080/token/admin
 Authorization: Bearer {{access_token}}
 
@@ -21,7 +25,7 @@ Authorization: Bearer {{access_token}}
 
 ###
 
-### Issue User Token
+### @name issue_user_token
 POST http://localhost:8080/token/user
 Authorization: Bearer {{access_token}}
 
@@ -31,33 +35,39 @@ Authorization: Bearer {{access_token}}
 
 ###
 
-### GET /hello (no authentication required)
+# ===================================
+# Hello World Endpoints
+# ===================================
+
+### @name hello_public
 GET http://localhost:8080/hello
 
 ###
 
-### GET /hello/admin with admin token
+### @name hello_admin
 GET http://localhost:8080/hello/admin
 Authorization: Bearer {{admin_token}}
 
 ###
 
-### GET /hello/admin with user token (should fail with 403)
+### @name hello_admin_forbidden_for_user
 GET http://localhost:8080/hello/admin
 Authorization: Bearer {{user_token}}
 
 ###
 
-###
+# ===================================
+# Message Endpoints
+# ===================================
 
-### GET /messages - Read all messages from database
+### @name get_messages
 GET http://localhost:8080/messages
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
 
 ###
 
-### POST /messages - Send message to Kafka
+### @name post_message
 POST http://localhost:8080/messages
 Authorization: Bearer {{admin_token}}
 Content-Type: text/plain
@@ -65,3 +75,140 @@ Content-Type: text/plain
 Hello from Kafka!
 
 ###
+
+# ===================================
+# Pricing Product Endpoints
+# ===================================
+
+### @name create_product_laptop_new
+POST http://localhost:8080/api/v1/pricing/products
+Content-Type: application/json
+
+{
+  "sku": "LAPTOP-NEW-001",
+  "name": "Ultra Thin Pro Laptop",
+  "description": "Latest generation ultra-thin professional laptop with advanced graphics",
+  "base_price": 2499.99
+}
+
+###
+
+### @name create_product_phone_premium
+POST http://localhost:8080/api/v1/pricing/products
+Content-Type: application/json
+
+{
+  "sku": "PHONE-PREMIUM-001",
+  "name": "Flagship Ultra Max",
+  "description": "Premium flagship smartphone with all latest features",
+  "base_price": 1299.99
+}
+
+###
+
+### @name get_product_by_sku
+GET http://localhost:8080/api/v1/pricing/products/LAPTOP-001
+Accept: application/json
+
+###
+
+### @name patch_product_details
+PATCH http://localhost:8080/api/v1/pricing/products/LAPTOP-001
+Content-Type: application/json
+
+{
+  "name": "Premium Pro Laptop - Updated Edition",
+  "description": "High-performance laptop for professionals with latest specs",
+  "base_price": 1399.99
+}
+
+###
+
+### @name patch_product_price_only
+PATCH http://localhost:8080/api/v1/pricing/products/PHONE-001
+Content-Type: application/json
+
+{
+  "base_price": 1099.99
+}
+
+###
+
+# ===================================
+# Pricing Endpoints
+# ===================================
+
+### @name post_price_update_laptop
+POST http://localhost:8080/api/v1/pricing/prices
+Content-Type: application/json
+
+{
+  "product_sku": "LAPTOP-001",
+  "amount": 1199.99,
+  "currency": "USD"
+}
+
+###
+
+### @name post_price_update_phone
+POST http://localhost:8080/api/v1/pricing/prices
+Content-Type: application/json
+
+{
+  "product_sku": "PHONE-001",
+  "amount": 899.99,
+  "currency": "USD"
+}
+
+###
+
+### @name post_price_update_monitor
+POST http://localhost:8080/api/v1/pricing/prices
+Content-Type: application/json
+
+{
+  "product_sku": "MONITOR-001",
+  "amount": 449.99,
+  "currency": "USD"
+}
+
+###
+
+### @name get_prices_laptop
+GET http://localhost:8080/api/v1/pricing/products/LAPTOP-001/prices
+
+###
+
+### @name get_prices_phone
+GET http://localhost:8080/api/v1/pricing/products/PHONE-001/prices
+
+###
+
+### @name get_prices_monitor
+GET http://localhost:8080/api/v1/pricing/products/MONITOR-001/prices
+
+###
+
+# ===================================
+# Notes
+# ===================================
+#
+# Product Seeded Data (from Flyway V2__seed_initial_products.sql):
+# - LAPTOP-001, LAPTOP-002, LAPTOP-003
+# - PHONE-001, PHONE-002, PHONE-003
+# - MONITOR-001, MONITOR-002, MONITOR-003
+#
+# Workflow:
+# 1. Create or fetch existing products with GET /api/v1/pricing/products/{sku}
+# 2. Push dynamic prices via POST /api/v1/pricing/prices (sends async to Kafka)
+# 3. Prices are consumed by listener and stored in database
+# 4. Query active prices for a product with GET /api/v1/pricing/products/{sku}/prices
+#
+# Demo Flow:
+# 1. POST create a new product
+# 2. POST multiple price updates for that product
+# 3. GET the product to see current details
+# 4. GET all prices for the product to see price history
+#
+
+

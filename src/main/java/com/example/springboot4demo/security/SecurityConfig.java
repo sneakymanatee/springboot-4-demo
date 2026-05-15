@@ -1,6 +1,6 @@
 package com.example.springboot4demo.security;
 
-import com.example.springboot4demo.controller.CustomAccessDeniedHandler;
+import com.example.springboot4demo.demo.controller.CustomAccessDeniedHandler;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -70,11 +70,23 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
+    public SecurityFilterChain apiPermitAllSecurityFilterChain(HttpSecurity http) {
+        http
+                .securityMatcher("/api/**")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+                .csrf(AbstractHttpConfigurer::disable);
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) {
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()   // permit access to actuator endpoints
                         .requestMatchers("/hello").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 ->
@@ -133,7 +145,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+    public JwtDecoder jwtDecoder() {
         return NimbusJwtDecoder.withJwkSetUri("http://localhost:8080/oauth2/jwks").build();
     }
 
