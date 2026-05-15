@@ -1,4 +1,4 @@
-package com.example.springboot4demo.messaging.config;
+package com.example.springboot4demo.demo.messaging.config;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;

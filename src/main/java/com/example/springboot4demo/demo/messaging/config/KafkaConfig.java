@@ -1,4 +1,4 @@
-package com.example.springboot4demo.messaging.config;
+package com.example.springboot4demo.demo.messaging.config;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;

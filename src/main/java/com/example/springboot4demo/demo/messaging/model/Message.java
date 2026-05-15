@@ -1,4 +1,4 @@
-package com.example.springboot4demo.messaging.model;
+package com.example.springboot4demo.demo.messaging.model;
 
 import jakarta.persistence.*;
 import lombok.Data;

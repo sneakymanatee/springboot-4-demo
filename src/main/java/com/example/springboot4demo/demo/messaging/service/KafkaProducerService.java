@@ -1,4 +1,4 @@
-package com.example.springboot4demo.messaging.service;
+package com.example.springboot4demo.demo.messaging.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

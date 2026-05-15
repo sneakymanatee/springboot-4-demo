@@ -1,4 +1,4 @@
-package com.example.springboot4demo.controller;
+package com.example.springboot4demo.demo.controller;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;

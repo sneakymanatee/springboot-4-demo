@@ -1,6 +1,6 @@
-package com.example.springboot4demo.messaging.repository;
+package com.example.springboot4demo.demo.messaging.repository;
 
-import com.example.springboot4demo.messaging.model.Message;
+import com.example.springboot4demo.demo.messaging.model.Message;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

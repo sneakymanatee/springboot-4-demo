@@ -1,8 +1,8 @@
-package com.example.springboot4demo.controller;
+package com.example.springboot4demo.demo.controller;
 
-import com.example.springboot4demo.messaging.model.Message;
-import com.example.springboot4demo.messaging.repository.MessageRepository;
-import com.example.springboot4demo.messaging.service.KafkaProducerService;
+import com.example.springboot4demo.demo.messaging.model.Message;
+import com.example.springboot4demo.demo.messaging.repository.MessageRepository;
+import com.example.springboot4demo.demo.messaging.service.KafkaProducerService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;

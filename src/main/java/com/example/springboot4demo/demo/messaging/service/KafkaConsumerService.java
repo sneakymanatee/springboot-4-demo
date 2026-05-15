@@ -1,7 +1,7 @@
-package com.example.springboot4demo.messaging.service;
+package com.example.springboot4demo.demo.messaging.service;
 
-import com.example.springboot4demo.messaging.model.Message;
-import com.example.springboot4demo.messaging.repository.MessageRepository;
+import com.example.springboot4demo.demo.messaging.model.Message;
+import com.example.springboot4demo.demo.messaging.repository.MessageRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
