@@ -1,5 +1,6 @@
 package com.example.springboot4demo.pricing.service;
 
+import com.example.springboot4demo.config.DbReadMetrics;
 import com.example.springboot4demo.pricing.dto.PriceEvent;
 import com.example.springboot4demo.pricing.model.Price;
 import com.example.springboot4demo.pricing.model.Product;
@@ -20,6 +21,7 @@ public class PriceConsumerService {
     private final PriceRepository priceRepository;
     private final ProductRepository productRepository;
     private final ObjectMapper objectMapper;
+    private final DbReadMetrics dbReadMetrics;
 
     @KafkaListener(topics = "product-prices", groupId = "price-processor")
     @Transactional
@@ -29,7 +31,12 @@ public class PriceConsumerService {
 
             PriceEvent priceEvent = objectMapper.readValue(message, PriceEvent.class);
 
-            Product product = productRepository.findById(priceEvent.getProductId())
+            Product product = dbReadMetrics.record(
+                            "PriceConsumerService",
+                            "ProductRepository",
+                            "findById",
+                            () -> productRepository.findById(priceEvent.getProductId())
+                    )
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + priceEvent.getProductId()));
 
             // Upsert: Create new price record

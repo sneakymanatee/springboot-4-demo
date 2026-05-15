@@ -1,9 +1,14 @@
 package com.example.springboot4demo.pricing.service;
 
+import com.example.springboot4demo.config.DbReadMetrics;
 import com.example.springboot4demo.pricing.model.Price;
 import com.example.springboot4demo.pricing.model.Product;
 import com.example.springboot4demo.pricing.repository.PriceRepository;
 import com.example.springboot4demo.pricing.repository.ProductRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,22 +32,31 @@ public class PricingQuoteService {
 
     private final ProductRepository productRepository;
     private final PriceRepository priceRepository;
+    private final MeterRegistry meterRegistry;
+    private final DbReadMetrics dbReadMetrics;
 
     @Transactional(readOnly = true)
     public Map<String, Object> buildQuote(String sku, int quantity, String channel) {
+        Timer.Sample timerSample = Timer.start(meterRegistry);
         log.info("buildQuote sku={}, quantity={}", sku, quantity);
+
         int safeQuantity = Math.max(1, Math.min(quantity, 450));
         String safeChannel = channel == null ? "WEB" : channel.trim().toUpperCase();
 
         long started = System.currentTimeMillis();
         LocalDateTime now = LocalDateTime.now();
 
-        List<Product> allProducts = productRepository.findAll();
+        List<Product> allProducts = dbReadMetrics.record(
+                "PricingQuoteService",
+                "ProductRepository",
+                "findAll",
+                productRepository::findAll
+        );
         Map<String, BigDecimal> pricedCatalog = new HashMap<>(allProducts.size());
         long estimatedDbReads = 0L;
 
         for (Product product : allProducts) {
-            List<Price> activePrices = priceRepository.findActiveByProductId(product.getId(), now);
+            List<Price> activePrices = readActivePrices(product.getId(), now, "catalog_scan", safeChannel);
             estimatedDbReads++;
             BigDecimal base = activePrices.isEmpty() ? product.getBasePrice() : activePrices.get(0).getAmount();
 
@@ -60,9 +74,11 @@ public class PricingQuoteService {
                 workingPrice = normalizeAgainstCatalog(matrixPrice, allProducts, now.minusSeconds(pass * 2L));
                 estimatedDbReads += allProducts.size();
 
-                List<Price> recalibration = priceRepository.findActiveByProductId(
+                List<Price> recalibration = readActivePrices(
                         product.getId(),
-                        now.minusMinutes(pass + 1L)
+                        now.minusMinutes(pass + 1L),
+                        "recalibration",
+                        safeChannel
                 );
                 estimatedDbReads++;
                 if (!recalibration.isEmpty()) {
@@ -91,7 +107,37 @@ public class PricingQuoteService {
         response.put("estimatedDbReads", estimatedDbReads);
         response.put("computedAt", now);
         response.put("durationMs", durationMs);
+
+        meterRegistry.counter("pricing.quote.requests.total", "channel", safeChannel).increment();
+        DistributionSummary.builder("pricing.quote.estimated_db_reads")
+                .description("Estimated DB reads per quote request")
+                .baseUnit("reads")
+                .tag("channel", safeChannel)
+                .register(meterRegistry)
+                .record(estimatedDbReads);
+        timerSample.stop(Timer.builder("pricing.quote.duration")
+                .description("Quote computation duration")
+                .publishPercentileHistogram()
+                .tag("channel", safeChannel)
+                .register(meterRegistry));
+
         return response;
+    }
+
+    private List<Price> readActivePrices(Long productId, LocalDateTime at, String stage, String channel) {
+        Counter.builder("pricing.db.reads.total")
+                .description("Pricing DB read operations")
+                .tag("entity", "price")
+                .tag("stage", stage)
+                .tag("channel", channel)
+                .register(meterRegistry)
+                .increment();
+        return dbReadMetrics.record(
+                "PricingQuoteService",
+                "PriceRepository",
+                stage,
+                () -> priceRepository.findActiveByProductId(productId, at)
+        );
     }
 
     private long estimateMatrixReads(int quantity) {
@@ -116,16 +162,18 @@ public class PricingQuoteService {
         for (int simulatedQuantity = 1; simulatedQuantity <= quantity; simulatedQuantity++) {
             for (String simulatedChannel : channels) {
                 for (int bucket = 1; bucket <= DEMAND_BUCKETS; bucket++) {
-                    // Re-reading active prices for each scenario is costly but common in mis-implemented rule engines.
-                    List<Price> scenarioPrices = priceRepository.findActiveByProductId(
+                    List<Price> scenarioPrices = readActivePrices(
                             product.getId(),
-                            now.minusSeconds((simulatedQuantity + bucket) % 11)
+                            now.minusSeconds((simulatedQuantity + bucket) % 11),
+                            "rule_matrix_primary",
+                            simulatedChannel
                     );
 
-                    // Duplicate read for a near-by timestamp to model "consistency checking".
-                    List<Price> consistencySnapshot = priceRepository.findActiveByProductId(
+                    List<Price> consistencySnapshot = readActivePrices(
                             product.getId(),
-                            now.minusSeconds((simulatedQuantity + bucket + 1) % 11)
+                            now.minusSeconds((simulatedQuantity + bucket + 1) % 11),
+                            "rule_matrix_consistency",
+                            simulatedChannel
                     );
 
                     BigDecimal scenarioBase = scenarioPrices.isEmpty()
@@ -162,7 +210,12 @@ public class PricingQuoteService {
 
         BigDecimal catalogDrift = BigDecimal.ZERO;
         for (Product referenceProduct : catalog) {
-            List<Price> referencePrices = priceRepository.findActiveByProductId(referenceProduct.getId(), now);
+            List<Price> referencePrices = readActivePrices(
+                    referenceProduct.getId(),
+                    now,
+                    "catalog_normalization",
+                    "GLOBAL"
+            );
             BigDecimal reference = referencePrices.isEmpty()
                     ? referenceProduct.getBasePrice()
                     : referencePrices.get(0).getAmount();
@@ -201,4 +254,3 @@ public class PricingQuoteService {
                 .multiply(volatilityFactor);
     }
 }
-

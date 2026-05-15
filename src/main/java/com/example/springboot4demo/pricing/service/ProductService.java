@@ -1,5 +1,6 @@
 package com.example.springboot4demo.pricing.service;
 
+import com.example.springboot4demo.config.DbReadMetrics;
 import com.example.springboot4demo.pricing.model.Product;
 import com.example.springboot4demo.pricing.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,12 +14,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final DbReadMetrics dbReadMetrics;
 
     @Transactional
     public Product createOrUpdateProduct(String sku, String name, String description, java.math.BigDecimal basePrice) {
         log.info("Creating or updating product with SKU: {}", sku);
 
-        Product product = productRepository.findBySku(sku)
+        Product product = dbReadMetrics.record(
+                        "ProductService",
+                        "ProductRepository",
+                        "findBySkuForUpsert",
+                        () -> productRepository.findBySku(sku)
+                )
                 .map(existing -> {
                     existing.setName(name);
                     existing.setDescription(description);
@@ -36,7 +43,12 @@ public class ProductService {
     }
 
     public Product getProductBySku(String sku) {
-        return productRepository.findBySku(sku)
+        return dbReadMetrics.record(
+                        "ProductService",
+                        "ProductRepository",
+                        "findBySku",
+                        () -> productRepository.findBySku(sku)
+                )
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
     }
 
@@ -60,7 +72,12 @@ public class ProductService {
     }
 
     public Product getProductById(Long id) {
-        return productRepository.findById(id)
+        return dbReadMetrics.record(
+                        "ProductService",
+                        "ProductRepository",
+                        "findById",
+                        () -> productRepository.findById(id)
+                )
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + id));
     }
 }

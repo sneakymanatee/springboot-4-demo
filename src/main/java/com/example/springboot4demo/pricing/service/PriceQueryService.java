@@ -1,5 +1,6 @@
 package com.example.springboot4demo.pricing.service;
 
+import com.example.springboot4demo.config.DbReadMetrics;
 import com.example.springboot4demo.pricing.dto.PriceResponse;
 import com.example.springboot4demo.pricing.model.Price;
 import com.example.springboot4demo.pricing.repository.PriceRepository;
@@ -17,11 +18,17 @@ import java.util.stream.Collectors;
 public class PriceQueryService {
 
     private final PriceRepository priceRepository;
+    private final DbReadMetrics dbReadMetrics;
 
     public List<PriceResponse> getActivePricesByProductId(Long productId) {
         log.info("Fetching active prices for product ID: {}", productId);
 
-        List<Price> prices = priceRepository.findActiveByProductId(productId, LocalDateTime.now());
+        List<Price> prices = dbReadMetrics.record(
+                "PriceQueryService",
+                "PriceRepository",
+                "findActiveByProductId",
+                () -> priceRepository.findActiveByProductId(productId, LocalDateTime.now())
+        );
 
         return prices.stream()
                 .map(this::mapToResponse)
@@ -31,7 +38,12 @@ public class PriceQueryService {
     public List<PriceResponse> getActivePricesByProductSku(String productSku) {
         log.info("Fetching active prices for product SKU: {}", productSku);
 
-        List<Price> prices = priceRepository.findActiveByProductSku(productSku, LocalDateTime.now());
+        List<Price> prices = dbReadMetrics.record(
+                "PriceQueryService",
+                "PriceRepository",
+                "findActiveByProductSku",
+                () -> priceRepository.findActiveByProductSku(productSku, LocalDateTime.now())
+        );
 
         return prices.stream()
                 .map(this::mapToResponse)

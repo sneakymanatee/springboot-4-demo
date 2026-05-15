@@ -19,6 +19,15 @@ management:
     metrics:
       export:
         enabled: true
+  metrics:
+    tags:
+      application: springboot-demo
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        pricing.quote.duration: true
+        app.db.read.duration: true
+        app.http.request.duration: true
 
 spring:
   application:
@@ -35,7 +44,7 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        format_sql=true: true
+        format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   flyway:

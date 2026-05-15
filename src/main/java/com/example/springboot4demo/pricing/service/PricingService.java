@@ -1,5 +1,6 @@
 package com.example.springboot4demo.pricing.service;
 
+import com.example.springboot4demo.config.DbReadMetrics;
 import com.example.springboot4demo.pricing.model.Product;
 import com.example.springboot4demo.pricing.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,10 +17,16 @@ import java.util.Map;
 public class PricingService {
 
     private final ProductRepository productRepository;
+    private final DbReadMetrics dbReadMetrics;
 
     public BigDecimal computeQuote(String sku, String segment) {
         log.info("computeQuote sku={}, segment={}", sku, segment);
-        Product product = productRepository.findBySku(sku)
+        Product product = dbReadMetrics.record(
+                        "PricingService",
+                        "ProductRepository",
+                        "findBySku",
+                        () -> productRepository.findBySku(sku)
+                )
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
 
         Map<String, BigDecimal> segmentMultiplier = Map.of(
