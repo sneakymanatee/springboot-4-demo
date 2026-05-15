@@ -1,82 +1,4 @@
 # ===================================
-# Authentication Endpoints
-# ===================================
-
-### @name get_oauth2_token
-POST http://localhost:8080/oauth2/token
-Authorization: Basic client secret
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=client_credentials
-
-> {%
-    client.global.set("access_token", response.body.access_token);
-%}
-
-###
-
-### @name issue_admin_token
-POST http://localhost:8080/token/admin
-Authorization: Bearer {{access_token}}
-
-> {%
-    client.global.set("admin_token", response.body.token);
-%}
-
-###
-
-### @name issue_user_token
-POST http://localhost:8080/token/user
-Authorization: Bearer {{access_token}}
-
-> {%
-    client.global.set("user_token", response.body.token);
-%}
-
-###
-
-# ===================================
-# Hello World Endpoints
-# ===================================
-
-### @name hello_public
-GET http://localhost:8080/hello
-
-###
-
-### @name hello_admin
-GET http://localhost:8080/hello/admin
-Authorization: Bearer {{admin_token}}
-
-###
-
-### @name hello_admin_forbidden_for_user
-GET http://localhost:8080/hello/admin
-Authorization: Bearer {{user_token}}
-
-###
-
-# ===================================
-# Message Endpoints
-# ===================================
-
-### @name get_messages
-GET http://localhost:8080/messages
-Authorization: Bearer {{admin_token}}
-Content-Type: application/json
-
-###
-
-### @name post_message
-POST http://localhost:8080/messages
-Authorization: Bearer {{admin_token}}
-Content-Type: text/plain
-
-Hello from Kafka!
-
-###
-
-# ===================================
 # Pricing Product Endpoints
 # ===================================
 
@@ -189,26 +111,9 @@ GET http://localhost:8080/api/v1/pricing/products/MONITOR-001/prices
 
 ###
 
-# ===================================
-# Notes
-# ===================================
-#
-# Product Seeded Data (from Flyway V2__seed_initial_products.sql):
-# - LAPTOP-001, LAPTOP-002, LAPTOP-003
-# - PHONE-001, PHONE-002, PHONE-003
-# - MONITOR-001, MONITOR-002, MONITOR-003
-#
-# Workflow:
-# 1. Create or fetch existing products with GET /api/v1/pricing/products/{sku}
-# 2. Push dynamic prices via POST /api/v1/pricing/prices (sends async to Kafka)
-# 3. Prices are consumed by listener and stored in database
-# 4. Query active prices for a product with GET /api/v1/pricing/products/{sku}/prices
-#
-# Demo Flow:
-# 1. POST create a new product
-# 2. POST multiple price updates for that product
-# 3. GET the product to see current details
-# 4. GET all prices for the product to see price history
-#
 
+### @name get_quote_laptop_stress
+GET http://localhost:8080/api/v1/pricing/products/LAPTOP-001/quote?quantity=430&channel=WEB
+
+###
 

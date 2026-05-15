@@ -7,6 +7,7 @@ import com.example.springboot4demo.pricing.dto.ProductRequest;
 import com.example.springboot4demo.pricing.model.Product;
 import com.example.springboot4demo.pricing.service.PriceProducerService;
 import com.example.springboot4demo.pricing.service.PriceQueryService;
+import com.example.springboot4demo.pricing.service.PricingQuoteService;
 import com.example.springboot4demo.pricing.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/pricing")
@@ -26,6 +28,7 @@ public class PricingController {
     private final ProductService productService;
     private final PriceProducerService priceProducerService;
     private final PriceQueryService priceQueryService;
+    private final PricingQuoteService pricingQuoteService;
 
     /**
      * POST /api/v1/pricing/products - Create a new product
@@ -114,5 +117,16 @@ public class PricingController {
         Product product = productService.getProductBySku(sku);
         return ResponseEntity.ok(product);
     }
-}
 
+    /**
+     * GET /api/v1/pricing/products/{sku}/quote - Build a storefront quote by SKU.
+     */
+    @GetMapping("/products/{sku}/quote")
+    public ResponseEntity<Map<String, Object>> getQuote(
+            @PathVariable("sku") String sku,
+            @RequestParam(name = "quantity", defaultValue = "1") int quantity,
+            @RequestParam(name = "channel", defaultValue = "WEB") String channel) {
+        Map<String, Object> quote = pricingQuoteService.buildQuote(sku, quantity, channel);
+        return ResponseEntity.ok(quote);
+    }
+}
