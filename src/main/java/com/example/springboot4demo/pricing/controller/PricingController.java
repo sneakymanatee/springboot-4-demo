@@ -7,6 +7,7 @@ import com.example.springboot4demo.pricing.dto.ProductRequest;
 import com.example.springboot4demo.pricing.model.Product;
 import com.example.springboot4demo.pricing.service.PriceProducerService;
 import com.example.springboot4demo.pricing.service.PriceQueryService;
+import com.example.springboot4demo.pricing.service.PricingService;
 import com.example.springboot4demo.pricing.service.PricingQuoteService;
 import com.example.springboot4demo.pricing.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,7 @@ public class PricingController {
     private final PriceProducerService priceProducerService;
     private final PriceQueryService priceQueryService;
     private final PricingQuoteService pricingQuoteService;
+    private final PricingService pricingService;
 
     /**
      * POST /api/v1/pricing/products - Create a new product
@@ -126,7 +129,24 @@ public class PricingController {
             @PathVariable("sku") String sku,
             @RequestParam(name = "quantity", defaultValue = "1") int quantity,
             @RequestParam(name = "channel", defaultValue = "WEB") String channel) {
+        log.info("Fetching quote for product SKU: {}", sku);
         Map<String, Object> quote = pricingQuoteService.buildQuote(sku, quantity, channel);
         return ResponseEntity.ok(quote);
+    }
+
+    /**
+     * GET /api/v1/pricing/products/{sku}/quote/segment - Segment quote with unstable mapping behavior.
+     */
+    @GetMapping("/products/{sku}/quote/segment")
+    public ResponseEntity<Map<String, Object>> getSegmentQuote(
+            @PathVariable("sku") String sku,
+            @RequestParam(name = "segment", defaultValue = "flash") String segment) {
+        log.info("Fetching quote segment for product SKU: {}", sku);
+        BigDecimal quoted = pricingService.computeQuote(sku, segment);
+        return ResponseEntity.ok(Map.of(
+                "sku", sku,
+                "segment", segment,
+                "quotedPrice", quoted
+        ));
     }
 }

@@ -117,3 +117,13 @@ GET http://localhost:8080/api/v1/pricing/products/LAPTOP-001/quote?quantity=430&
 
 ###
 
+
+### @name get_segment_quote_ok
+GET http://localhost:8080/api/v1/pricing/products/LAPTOP-001/quote/segment?segment=vip
+
+###
+
+### @name get_segment_quote_500
+GET http://localhost:8080/api/v1/pricing/products/LAPTOP-001/quote/segment?segment=flash
+
+###

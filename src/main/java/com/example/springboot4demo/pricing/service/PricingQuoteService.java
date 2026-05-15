@@ -30,6 +30,7 @@ public class PricingQuoteService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> buildQuote(String sku, int quantity, String channel) {
+        log.info("buildQuote sku={}, quantity={}", sku, quantity);
         int safeQuantity = Math.max(1, Math.min(quantity, 450));
         String safeChannel = channel == null ? "WEB" : channel.trim().toUpperCase();
 
